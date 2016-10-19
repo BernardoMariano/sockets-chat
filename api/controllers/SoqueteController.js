@@ -1,3 +1,4 @@
+'use strict'
 /**
  * SoqueteController
  *
@@ -20,6 +21,27 @@ const App = {
         App.messages.push(message)
         return message
     }
+}
+
+let expireExternalAction = null
+
+const broadcastExternalAction = (room, name, action) => {
+    let actionText = ''
+    switch (action) {
+        case 'typing':
+            actionText = `${ name } está digitando...`
+            break
+        default:
+            actionText = `${ name } está agindo...`
+    }
+    sails.sockets.broadcast(room, 'externalAction', actionText)
+    if (expireExternalAction != null) {
+        clearTimeout(expireExternalAction)
+    }
+    expireExternalAction = setTimeout(function() {
+        expireExternalAction = null
+        sails.sockets.broadcast(room, 'externalAction', '')
+    }, 1000)
 }
 
 const broadcastRoomsList = () => {
@@ -152,6 +174,15 @@ module.exports = {
     listRoom: (req, res) => {
         if (req.isSocket) {
             broadcastRoomsList()
+        }
+    },
+    externalAction: (req, res) => {
+        if (req.isSocket) {
+            const userSocket = sails.config.session.users[req.socket.id]
+            const name = userSocket.name
+            const room = userSocket.room
+            const action = req.param('action')
+            broadcastExternalAction(room, name, action)
         }
     }
 }
